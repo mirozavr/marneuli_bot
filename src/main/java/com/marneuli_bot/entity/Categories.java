@@ -20,4 +20,6 @@ public class Categories {
     private Long id;
 
     String name;
+
+
 }

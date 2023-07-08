@@ -10,6 +10,14 @@ import java.util.List;
 @Repository
 public interface OrderRepository extends JpaRepository<Order, Long> {
 
+
+
     List<Order> findByCategory(Categories category);
+
+    List<Order> findByCategoryAndCategoryId(Categories category, long categoryId);
+
+    List<Order> findByCategoryId(long categoryId);
+
+
 
 }
