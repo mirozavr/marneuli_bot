@@ -23,6 +23,9 @@ public class Order {
     @Column(name = "id", nullable = false)
     private Long id;
 
+    @Column(name = "user_id")
+    private Long userId;
+
     private String name;
     private String description;
 
@@ -38,9 +41,6 @@ public class Order {
 
     @Column(name = "time_publication")
     private LocalDateTime timePublication;
-
-    @Column(name = "seller_id")
-    private long sellerId;
 
     @Column(name = "seller_username")
     private String sellerUserName;

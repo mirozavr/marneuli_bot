@@ -14,11 +14,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.GetFile;
-import org.telegram.telegrambots.meta.api.methods.groupadministration.GetChat;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
 import org.telegram.telegrambots.meta.api.objects.*;
-import org.telegram.telegrambots.meta.api.objects.chatmember.ChatMember;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardRemove;
@@ -26,9 +24,6 @@ import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKe
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardButton;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
-import javax.imageio.ImageIO;
-import java.awt.Image;
-import java.awt.image.BufferedImage;
 import java.io.*;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -60,15 +55,17 @@ public class TelegramBot extends TelegramLongPollingBot {
     private String description5;
     private float price5;
     private byte[] image5;
-    private long sellerId5;
+    private long userIdCallback5;
+
+
     private long sellerChatId5;
    private Categories categories5;
    private String sellerUserName5;
    private String getSellerUserName5;
    private Order order5;
    private Sostoyanie sostoyanie5;
-    public Message topCommand;
-    public String topHello;
+    private Message topCommand;
+    private String topHello;
 
     final BotConfig config;
     public TelegramBot(BotConfig config) {
@@ -124,7 +121,7 @@ public class TelegramBot extends TelegramLongPollingBot {
             if (update.hasMessage() && update.getMessage().hasText()) {
                 String chatId = update.getMessage().getChatId().toString();
                 String descriptionText = update.getMessage().getText();
-                /*Contact contact = update.getMessage().getContact();
+                /* Contact contact = update.getMessage().getContact();
                 String contactInfo = contact != null ? contact.toString() : "";
                 String conPlus = contact != null ? contact.getPhoneNumber() : "";*/
                 order.setDescription(descriptionText);
@@ -248,10 +245,12 @@ public class TelegramBot extends TelegramLongPollingBot {
             String messageText = update.getMessage().getText();
             String chatId = update.getMessage().getChatId().toString();
             if (messageText.equals("Подтвердить")) {
-                this.sellerId5 = update.getMessage().getChat().getId();
+              //  this.userId5 = update.getMessage().getFrom().getId();
+               // this.userId5 = update.getCallbackQuery().getMessage().getFrom().getId();   - return null (оно и понятно)
                 this.sellerUserName5 = update.getMessage().getChat().getUserName();
                 this.sellerChatId5 = update.getMessage().getChatId();
-                order.setSellerId(sellerId5);
+              //  order.setUserId(userId5);
+                order.setUserId(userIdCallback5);
 
                 writeOrderInDb(order);
 
@@ -262,6 +261,8 @@ public class TelegramBot extends TelegramLongPollingBot {
                         .text("Вы подтвердили введенные данные. Ваш товар/услуга скоро будет опубликован и будет видим другим пользователям. Бот вернется к меню выбора")
                         .replyMarkup(new ReplyKeyboardRemove(true)) // чтобы пользователь не мог 2 раза опублиовать один ордер клава убирается
                         .build();
+
+
 
 
 
@@ -474,6 +475,8 @@ public class TelegramBot extends TelegramLongPollingBot {
         if (update.hasCallbackQuery()) {
 
             if (update.getCallbackQuery().getData().equals("sell")) {
+                this.userIdCallback5 = update.getCallbackQuery().getMessage().getFrom().getId();
+
                 try {
 
                     String chatId0 = update.getCallbackQuery().getMessage().getChatId().toString();
@@ -518,7 +521,8 @@ public class TelegramBot extends TelegramLongPollingBot {
                 String chatId = update.getCallbackQuery().getMessage().getChatId().toString();
                 sos = sostoyanie.buyOrder;
                 String buyerUserName = update.getCallbackQuery().getMessage().getChat().getUserName();
-
+             //   String phoneNumber = update.getCallbackQuery().getMessage().getContact().getPhoneNumber();
+                String buyerId = update.getCallbackQuery().getMessage().getFrom().getId().toString();
              tellSellerAboutBuyer(buyerUserName, order5);
 
                 SendMessage message = SendMessage.builder()
@@ -526,8 +530,14 @@ public class TelegramBot extends TelegramLongPollingBot {
                         .text("Свяжитесь с продавцом, написав ему в Telegram: @" + getSellerUserName5)
                         .build();
 
+                SendMessage messageToSeller = SendMessage.builder()
+                        .chatId(buyerId)
+                        .text("Напишите покупателю @"+ buyerId)
+                        .build();
+
                 try {
                     execute(message);
+                    //    execute(messageToSeller); выйдет ошибка, что нельзя боту писать другм ботам
                 } catch (TelegramApiException e) {
                     throw new RuntimeException(e);
                 }
@@ -577,6 +587,14 @@ public class TelegramBot extends TelegramLongPollingBot {
 
                 }
             }
+
+            if (update.getCallbackQuery().getData().equals("back_start")) {
+                sos = sostoyanie.backStart;
+                String chatId = update.getCallbackQuery().getMessage().getChatId().toString();
+
+                startAnswer(topCommand, topHello);
+            }
+
             if (update.getCallbackQuery().getData().equals("my_purchases")) {
                 sos = sostoyanie.myPurchases;
 
@@ -593,14 +611,22 @@ public class TelegramBot extends TelegramLongPollingBot {
                     throw new RuntimeException(e);
                 }
             }
+
             if (update.getCallbackQuery().getData().equals("my_goods")) {
                 sos = sostoyanie.myGoods;
 
                 String chatId = update.getCallbackQuery().getMessage().getChatId().toString();
 
+                 long userId = update.getCallbackQuery().getMessage().getFrom().getId(); // попытка вывести чат айди по другому
+            //    userId5 = userId;
+
+
+          //      List<Order> userOrders = orderRepository.findBySellerChatId(userId);
+                  List<Order> userOrders = orderRepository.findByUserId(userId);
+
                 SendMessage message = SendMessage.builder()
                         .chatId(chatId)
-                        .text("Размещенные Вами товары:")
+                        .text("Ваш userID - " + userId + ", Ваш chatID - "+ chatId + " Размещенные Вами товары:")
                         .build();
 
                 try {
@@ -608,6 +634,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                 } catch (TelegramApiException e) {
                     throw new RuntimeException(e);
                 }
+                sendUserGoods(chatId, userOrders, userId);
             }
 
             else if (update.hasCallbackQuery() && sos == sostoyanie.checkCategoryForSell) {
@@ -688,10 +715,12 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     private void tellSellerAboutBuyer(String buyerUserName, Order order) {
         String sellerChatId = String.valueOf(sellerChatId5);
+       // пытался испаользовать phone number но это бессмысленно( может быть не указан)
+
 
          SendMessage message = SendMessage.builder()
                  .chatId(sellerChatId)
-                 .text("с Вами хочет связаться покупатель @" + buyerUserName)
+                 .text("с Вами хочет связаться покупатель @" + buyerUserName + " Телефон - " + " ID " + sellerChatId)
                  .build();
 
          SendMessage message2 = SendMessage.builder()
@@ -730,7 +759,7 @@ public class TelegramBot extends TelegramLongPollingBot {
             buy.setText("Купить (продавец свяжется с Вами");
             buy.setCallbackData("buy_order");
             backInStart.setText("Вернуться в начало");
-            backInStart.setCallbackData("/back_start");
+            backInStart.setCallbackData("back_start");
 
             getSellerUserName5 = order.getSellerUserName();
 
@@ -766,6 +795,52 @@ public class TelegramBot extends TelegramLongPollingBot {
             }
         }
     }
+
+    private void sendUserGoods(String chatId, List<Order> userOrders, long userId) {
+
+
+        for (Order order : userOrders) {
+            InlineKeyboardMarkup keyboardBuyOrder = new InlineKeyboardMarkup();
+            List<List<InlineKeyboardButton>> rowList = new ArrayList<>();
+            InlineKeyboardButton deleteButton = new InlineKeyboardButton();
+            InlineKeyboardButton backInStartButton = new InlineKeyboardButton();
+
+            List<InlineKeyboardButton> row = new ArrayList<>();
+            deleteButton.setText("Удалить");
+            deleteButton.setCallbackData("delete_order_" + order.getId());
+            backInStartButton.setText("Вернуться в начало");
+            backInStartButton.setCallbackData("back_start");
+
+            row.add(deleteButton);
+            row.add(backInStartButton);
+
+            rowList.add(row);
+            keyboardBuyOrder.setKeyboard(rowList);
+
+            SendMessage message = SendMessage.builder()
+                    .chatId(chatId)
+                    .text("Order: " + order.getName() + ", Description: " + order.getDescription() + ", Price: " + order.getPrice())
+                    .replyMarkup(keyboardBuyOrder)
+                    .build();
+
+            String fileId = getOrderPhotoBy(order);
+            InputFile inputFile = new InputFile(fileId);
+
+            SendPhoto photoMessage = SendPhoto.builder()
+                    .chatId(chatId)
+                    .photo(inputFile)
+                    .replyMarkup(keyboardBuyOrder)
+                    .build();
+
+            try {
+                execute(message);
+                execute(photoMessage);
+            } catch (TelegramApiException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
 
     public String getOrderPhotoBy(Order order) {
         String photoData = new String(order.getPhoto());
@@ -903,16 +978,16 @@ public class TelegramBot extends TelegramLongPollingBot {
     }
 
     private void writeOrderInDb(Order order) {
+        order.setId(userIdCallback5);
         order.setCategory(categories5);
         order.setName(name5);
         order.setPhoto(image5);
         order.setDescription(description5);
         order.setPrice(price5);
         order.setTimePublication(LocalDateTime.now());
-        order.setSellerId(sellerId5);
         order.setSellerUserName(sellerUserName5);
         order.setSellerChatId(sellerChatId5);
-        orderService.saveOrder(order.getName(),order.getDescription(), order.getPrice(), order.getPhoto(),order.getCategory(), order.getTimePublication(), order.getSellerId(), order.getSellerUserName(), order.getSellerChatId());
+        orderService.saveOrder(order.getUserId(), order.getName(),order.getDescription(), order.getPrice(), order.getPhoto(),order.getCategory(), order.getTimePublication(), order.getSellerUserName(), order.getSellerChatId());
 
     }
 
@@ -1030,6 +1105,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         private final int buyOrder = 22;
         private final int myPurchases = 23;
         private final int myGoods = 24;
+        private final int backStart = 25;
     }
 }
 
