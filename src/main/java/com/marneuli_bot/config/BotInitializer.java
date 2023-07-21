@@ -1,6 +1,6 @@
 package com.marneuli_bot.config;
 
-import com.marneuli_bot.service.TelegramBot;
+import com.marneuli_bot.service.bot.TelegramBot;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;

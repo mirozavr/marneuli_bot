@@ -20,7 +20,6 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     List<Order> findBySellerChatId(long sellerId);
 
-    List<Order> findByUserId(long userId);
 
 
 

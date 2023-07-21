@@ -18,12 +18,11 @@ public class OrderService {
         this.orderRepository = orderRepository;
     }
 
-    public void saveOrder(Long userId, String nameText, String descriptionText, float priceF, byte[] photoBytes, Categories category, LocalDateTime timePublication, String sellerUserName, long sellerChatId) {
+    public void saveOrder(String nameText, String descriptionText, float priceF, byte[] photoBytes, Categories category, LocalDateTime timePublication, String sellerUserName, long sellerChatId) {
 
         Order order = Order.builder()
                 .name(nameText)
                 .description(descriptionText)
-                .userId(userId)
                 .price(priceF)
                 .photo(photoBytes)
                 .category(category)
