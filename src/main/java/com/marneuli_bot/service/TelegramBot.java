@@ -1,10 +1,16 @@
-package com.marneuli_bot.service;
+package com.marneuli_bot.service.bot;
 
 import com.marneuli_bot.config.BotConfig;
 import com.marneuli_bot.entity.Categories;
 import com.marneuli_bot.entity.Order;
-import com.marneuli_bot.repository.CategoryRepository;
-import com.marneuli_bot.repository.OrderRepository;
+import com.marneuli_bot.entity.brands.CarBrands;
+import com.marneuli_bot.entity.brands.CarModels;
+import com.marneuli_bot.entity.brands.CarSelling;
+import com.marneuli_bot.repository.*;
+import com.marneuli_bot.service.CarService;
+import com.marneuli_bot.service.OrderService;
+import com.marneuli_bot.service.brands.*;
+import com.marneuli_bot.service.helpers.CarWithOrderInfo;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -35,19 +41,23 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     @Autowired
     private CategoryRepository categoryRepository;
-
     @Autowired
     private OrderService orderService;
+    @Autowired
+    private CarService carService;
 
-
-
+    CarSelling carSelling5;
     @Autowired
     private OrderRepository orderRepository;
+    @Autowired
+    private CarBrandRepository carBrandRepository;
+    @Autowired
+    private CarModelRepository carModelRepository;
+
 
     private Map<String, Integer> userStates = new HashMap<>();
 
     private int sos;
-
     private long tempCatIdSell;
     private long tempCatIdBuy;
 
@@ -55,9 +65,29 @@ public class TelegramBot extends TelegramLongPollingBot {
     private String description5;
     private float price5;
     private byte[] image5;
-    private long userIdCallback5;
+    private long botIdCallback5;
+    //////////////////////////// CAR LOGIC
+    /// Car Brand
+    private long tempCarBrandIdSell5;
+    private long tempCarBrandIdBuy5;
+    private String tempCarBrandNameSell5;
+    private String tempCarBrandNameBuy5;
 
 
+    /// Car Model
+    private boolean carInDb;
+    private long tempCarModelId5Sell;
+    private long tempCarModelIdBuy5;
+    private CarBrands carBrands5;
+    private CarModels carModels5;
+    private String tempCarModelNameBuy5;
+
+    private String tempCarModelNameSell5;
+    private CarBrands tempCarModelBrandIdBuy5;
+    private String tempCarModelBodyStyleBuy5;
+    /// Car Sell
+    private int tempYearOfIssue5;
+    ////////////////////////////
     private long sellerChatId5;
    private Categories categories5;
    private String sellerUserName5;
@@ -68,8 +98,13 @@ public class TelegramBot extends TelegramLongPollingBot {
     private String topHello;
 
     final BotConfig config;
-    public TelegramBot(BotConfig config) {
+    private final CarSellingRepository carSellingRepository;
+
+
+    public TelegramBot(BotConfig config,
+                       CarSellingRepository carSellingRepository) {
         this.config = config;
+        this.carSellingRepository = carSellingRepository;
     }
 
     @Override
@@ -86,17 +121,27 @@ public class TelegramBot extends TelegramLongPollingBot {
     public void onUpdateReceived(Update update) {
         Sostoyanie sostoyanie = new Sostoyanie();
 
+        Categories categories7 = new Categories(); // sell
+        Categories categories2 = new Categories(); // buy
+        CarBrands carBrands7 = new CarBrands();
+        CarModels carModels7 = new CarModels();
+        CarSelling carSelling7 = new CarSelling();
 
-        Categories categories = new Categories();
-        Categories categories2 = new Categories();
-        categories.setId(tempCatIdSell);
+      // carModels7.setModel();
+        carSelling7.setYearOfIssue(tempYearOfIssue5);
+        categories7.setId(tempCatIdSell);
+        carBrands7.setId(tempCarBrandIdSell5);
         categories2.setId(tempCatIdBuy);
-        categories5 = categories;
+        categories5 = categories7;
+        carBrands5 = carBrands7;
+        carModels5 = carModels7;
+        carSelling5 = carSelling7;
+
         Order order = new Order();
         startBot(update);
 
         if (sos == sostoyanie.needNameWrite) {
-            order.setCategory(categories);
+            order.setCategory(categories7);
             if (update.hasMessage() && update.getMessage().hasText()) {
                 String chatId = update.getMessage().getChatId().toString();
                 String nameText = update.getMessage().getText();
@@ -105,7 +150,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
                 SendMessage message = SendMessage.builder()
                         .chatId(chatId)
-                        .text("Вы выбрали название " + nameText + ". Теперь введите описание товара")
+                        .text("Вы выбрали название " + nameText + ". Теперь введите контакт для связи с Вами, город и описание товара")
                         .build();
 
                 try {
@@ -140,7 +185,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                 //sos = sostoyanie.confirmNewOrder; это переносится в needPrice
                 sos = sostoyanie.needPriceWrite;
 
-            //    confirmNewOrderCar(update, sostoyanie); это переносится в needPrice
+            //    confirmNewOrder(update, sostoyanie); это переносится в needPrice
 
             }
         } else if (sos == sostoyanie.changeNameString) {
@@ -162,7 +207,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                 this.name5 = changedName;
                 sos = sostoyanie.confirmNewOrder;
 
-                confirmNewOrderCar(update, sostoyanie);
+                confirmNewOrder(update, sostoyanie);
             }
         } else if (sos == sostoyanie.changeDescriptionString) {
             if (update.hasMessage() && update.getMessage().hasText()) {
@@ -172,7 +217,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
                 SendMessage message = SendMessage.builder()
                         .chatId(chatId)
-                        .text("Вы поменяли описание")
+                        .text("Вы поменяли данные в описании")
                         .build();
 
                 try {
@@ -183,7 +228,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                 this.description5 = changedDescription;
                 sos = sostoyanie.confirmNewOrder;
 
-                confirmNewOrderCar(update, sostoyanie);
+                confirmNewOrder(update, sostoyanie);
             }
         }
         else if (sos == sostoyanie.needPriceWrite) {
@@ -194,6 +239,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
 
                  order.setPrice(price5);
+
 
                 SendMessage message = SendMessage.builder()
                         .chatId(chatId)
@@ -209,7 +255,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
                 sos = sostoyanie.confirmNewOrder;
 
-                confirmNewOrderCar(update, sostoyanie);
+                confirmNewOrder(update, sostoyanie);
             }
 
         }
@@ -236,10 +282,52 @@ public class TelegramBot extends TelegramLongPollingBot {
 
                 sos = sostoyanie.confirmNewOrder;
 
-                confirmNewOrderCar(update, sostoyanie);
+                confirmNewOrder(update, sostoyanie);
             }
-
         }
+
+        if (sos == sostoyanie.writeYearOfIssue) {
+            String chatId = update.getMessage().getChatId().toString();
+            if (update.hasMessage() && update.getMessage().hasText()) {
+                String yearOfIssue = update.getMessage().getText();
+                tempYearOfIssue5 = Integer.parseInt(yearOfIssue);
+                try {
+                    int yearOfIssueInt = Integer.parseInt(yearOfIssue);
+                   carSelling7.setYearOfIssue(yearOfIssueInt);
+
+                    SendMessage message = SendMessage.builder()
+                            .chatId(chatId)
+                            .text("Вы указали год: " + yearOfIssueInt)
+                            .build();
+
+                    SendMessage message2 = SendMessage.builder()
+                            .chatId(chatId)
+                            .text("Добавьте фотографию авто")
+                            .build();
+                    carInDb = true;
+
+                    try {
+                        execute(message);
+                        execute(message2);
+                    } catch (TelegramApiException e) {
+                        throw new RuntimeException(e);
+                    }
+                } catch (NumberFormatException e) {
+                    SendMessage message = SendMessage.builder()
+                            .chatId(chatId)
+                            .text("Пожалуйста, укажите год цифрами, например 2017")
+                            .build();
+
+                    try {
+                        execute(message);
+                    } catch (TelegramApiException ex) {
+                        throw new RuntimeException(ex);
+                    }
+                }
+                sos = sostoyanie.needPhotoUpload;
+            }
+        }
+
 
         if (update.hasMessage() && update.getMessage().hasText()) {
             String messageText = update.getMessage().getText();
@@ -250,9 +338,17 @@ public class TelegramBot extends TelegramLongPollingBot {
                 this.sellerUserName5 = update.getMessage().getChat().getUserName();
                 this.sellerChatId5 = update.getMessage().getChatId();
               //  order.setUserId(userId5);
-                order.setUserId(userIdCallback5);
 
-                writeOrderInDb(order);
+                try {
+                    writeOrderInDb(order);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+
+
+                //   saveCarInDb(carSelling7, orderId); рабочий метод но старый возможно
+
+
 
 
 
@@ -261,10 +357,6 @@ public class TelegramBot extends TelegramLongPollingBot {
                         .text("Вы подтвердили введенные данные. Ваш товар/услуга скоро будет опубликован и будет видим другим пользователям. Бот вернется к меню выбора")
                         .replyMarkup(new ReplyKeyboardRemove(true)) // чтобы пользователь не мог 2 раза опублиовать один ордер клава убирается
                         .build();
-
-
-
-
 
 
                 try {
@@ -467,7 +559,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                 }
 
                 sos = sostoyanie.confirmNewOrder;
-                confirmNewOrderCar(update, sostoyanie);
+                confirmNewOrder(update, sostoyanie);
 
             }
         }
@@ -475,7 +567,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         if (update.hasCallbackQuery()) {
 
             if (update.getCallbackQuery().getData().equals("sell")) {
-                this.userIdCallback5 = update.getCallbackQuery().getMessage().getFrom().getId();
+                // this.userIdCallback5 = update.getCallbackQuery().getMessage().getFrom().getId(); - возвращает БОТ id! понадобится если нужно разостать всем участниам какое то сообщение!
 
                 try {
 
@@ -573,7 +665,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                             .text("Выберите категорию товара, который хотите купить:")
                             .replyMarkup(keyboard)
                             .build();
-                     sos = sostoyanie.checkCategoryForBuy;
+                           sos = sostoyanie.checkCategoryForBuy;
 
                     try {
                         // Отправка сообщения
@@ -616,17 +708,18 @@ public class TelegramBot extends TelegramLongPollingBot {
                 sos = sostoyanie.myGoods;
 
                 String chatId = update.getCallbackQuery().getMessage().getChatId().toString();
+                long chatId1 = update.getCallbackQuery().getMessage().getChatId();  // методу нужен id не стринговый
 
                  long userId = update.getCallbackQuery().getMessage().getFrom().getId(); // попытка вывести чат айди по другому
             //    userId5 = userId;
 
 
-          //      List<Order> userOrders = orderRepository.findBySellerChatId(userId);
-                  List<Order> userOrders = orderRepository.findByUserId(userId);
+                List<Order> userOrders = orderRepository.findBySellerChatId(chatId1);
+           //       List<Order> userOrders = orderRepository.findByUserId(userId);
 
                 SendMessage message = SendMessage.builder()
                         .chatId(chatId)
-                        .text("Ваш userID - " + userId + ", Ваш chatID - "+ chatId + " Размещенные Вами товары:")
+                        .text("ID бота - " + userId + ", Ваш id - "+ chatId + " Размещенные Вами товары:")
                         .build();
 
                 try {
@@ -634,7 +727,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                 } catch (TelegramApiException e) {
                     throw new RuntimeException(e);
                 }
-                sendUserGoods(chatId, userOrders, userId);
+                sendUserGoods(chatId, userOrders, chatId1);
             }
 
             else if (update.hasCallbackQuery() && sos == sostoyanie.checkCategoryForSell) {
@@ -643,18 +736,19 @@ public class TelegramBot extends TelegramLongPollingBot {
                 // Создание списка объектов с информацией о категориях и текстах сообщений
                 List<CategoryInfoSell> categoryInfoList = new ArrayList<>();
 
-                categoryInfoList.add(new CategoryInfoSell("category:1", "Добавьте одно фото автомобиля", 1));
+                categoryInfoList.add(new CategoryInfoSell("category:1", "Категория автомобилей", 1));
                 categoryInfoList.add(new CategoryInfoSell("category:2", "Приложите фотографию автозапчасти", 2));
                 categoryInfoList.add(new CategoryInfoSell("category:3", "Приложите фотографию (пример работы или прайс).", 3));
                 categoryInfoList.add(new CategoryInfoSell("category:4", "Приложите фотографию телефона", 4));
                 categoryInfoList.add(new CategoryInfoSell("category:5", "Приложите фотографию услуги или прайс ремонта телефона", 5));
                 categoryInfoList.add(new CategoryInfoSell("category:6", "Добавьте фотографию компьютера", 6));
-                categoryInfoList.add(new CategoryInfoSell("category:7", "Приложите фотографию ремонта компьютера/ прайс", 7));
+                categoryInfoList.add(new CategoryInfoSell("category:7", "Приложите фотографию ремонта компьютера/прайс", 7));
                 // Поиск выбранной категории в списке и отправка соответствующего сообщения
                 for (CategoryInfoSell categoryInfo : categoryInfoList) {
 
                     if (update.getCallbackQuery().getData().equals(categoryInfo.getCategory())) {
                         tempCatIdSell = categoryInfo.getSostId();
+
                         SendMessage message = SendMessage.builder()
                                 .chatId(chatId)
                                 .text(categoryInfo.getMessage())
@@ -664,15 +758,144 @@ public class TelegramBot extends TelegramLongPollingBot {
                             // Отправка сообщения
                             execute(message);
 
-                            sos = sostoyanie.needPhotoUpload;
-
                         } catch (TelegramApiException e) {
                             e.printStackTrace();
+                        }
+
+                        // Auto Sell logic
+                        if (tempCatIdSell == 1) {
+                            System.out.println("вы хотите ПРОДАТЬ авто");
+                            sos = sostoyanie.chooseCarBrandForSell;
+
+                            List<CarBrands> carBrandsList = checkCarBrandsSeller(chatId);
+
+                            InlineKeyboardMarkup keyboard = new InlineKeyboardMarkup();
+                            List<List<InlineKeyboardButton>> rowList = new ArrayList<>();
+
+                            for (CarBrands carBrands1 : carBrandsList) {
+                                InlineKeyboardButton button = new InlineKeyboardButton();
+                                List<InlineKeyboardButton> row = new ArrayList<>();
+                                button.setText(carBrands1.getName());
+                                button.setCallbackData("car_brand:" + carBrands1.getId());
+                                tempCarBrandIdSell5 = carBrands1.getId();
+
+                                row.add(button);
+                                rowList.add(row);
+                            }
+
+                            keyboard.setKeyboard(rowList);
+                            SendMessage message1 = SendMessage.builder()
+                                    .chatId(chatId)
+                                    .text("Выберите марку продаваемого автомобиля:")
+                                    .replyMarkup(keyboard)
+                                    .build();
+
+                            try {
+                                execute(message1);
+                                sos = sostoyanie.chooseCarModelForSell;
+                            } catch (TelegramApiException e) {
+                                throw new RuntimeException(e);
+                            }
+                        }
+               // временная заглушка для остальных категорий
+                                   else sos = sostoyanie.needPhotoUpload; // временная заглушка
+
+                    }
+                }
+            }
+
+            else if (update.hasCallbackQuery() && sos == sostoyanie.chooseCarModelForSell) {
+
+                String chatId = update.getCallbackQuery().getMessage().getChatId().toString();
+
+                CarBrandInfoSell carBrandInfoSell1 = new CarBrandInfoSell();
+                List<CarBrandInfoSell> carBrandsList = carBrandInfoSell1.createCarBrandList();
+                // тут список марок автомобилей для покупки
+
+                for (CarBrandInfoSell carBrandInfoSell : carBrandsList) {
+                    if (update.getCallbackQuery().getData().equals(carBrandInfoSell.getBrand())) {
+                        tempCarBrandIdSell5 = carBrandInfoSell.getSostId();
+                        tempCarBrandNameSell5 = carBrandInfoSell.getBrand();
+
+                        carBrands7.setId(tempCarBrandIdSell5);
+                        carModels7.setCarBrands(carBrands7);
+                        carSelling7.setCarBrands(carBrands7);
+
+
+                        List<CarModels> carModelsList = checkCarModelsSeller(chatId);
+
+                        InlineKeyboardMarkup keyboardModels = new InlineKeyboardMarkup();
+                        List<List<InlineKeyboardButton>> rowListModels = new ArrayList<>();
+
+                        for (CarModels carModels : carModelsList) {
+                            if (carModels.getCarBrands().getId() == tempCarBrandIdSell5) {
+                                InlineKeyboardButton button = new InlineKeyboardButton();
+                                List<InlineKeyboardButton> row = new ArrayList<>();
+                                button.setText(carModels.getModel());
+                                button.setCallbackData("car_model:" + carModels.getId()); // ПРОДАЖА!!! не менять на car_model_ buy!!!
+
+                                row.add(button);
+                                rowListModels.add(row);
+                            }
+                        }
+
+                        keyboardModels.setKeyboard(rowListModels);
+                        SendMessage message2 = SendMessage.builder()
+                                .chatId(chatId)
+                                .text("Выберите модель: " + carBrandInfoSell.getMessage())
+                                .replyMarkup(keyboardModels)
+                                .build();
+
+                        System.out.println(carBrands7.getId());
+
+                        try {
+                            execute(message2);
+                            sos = sostoyanie.setCarCreateYear;
+                        } catch (TelegramApiException e) {
+                            throw new RuntimeException(e);
                         }
                     }
                 }
             }
-            else if (update.hasCallbackQuery()) {
+
+            else if (update.hasCallbackQuery() && sos == sostoyanie.setCarCreateYear) {
+                String chatId = update.getCallbackQuery().getMessage().getChatId().toString();
+
+                   CarModelInfoSell carModelInfoSell1 = new CarModelInfoSell(carModelRepository);
+                List<CarModelInfoSell> carModelsList = carModelInfoSell1.createCarModelList();
+
+                // тут список моделей автомобилей
+
+
+                for (CarModelInfoSell carModelInfoSell : carModelsList) {
+                    if (update.getCallbackQuery().getData().equals("car_model:" + carModelInfoSell.getId())) {
+                    tempCarModelId5Sell = carModelInfoSell.getId();
+                    tempCarModelNameSell5 = carModelInfoSell.getModel();
+                    carModels7.setId(tempCarModelId5Sell);
+                    carModelInfoSell.setBrandId(carBrands5);
+                    carSelling7.setCarBrands(carBrands7);
+                   // carSelling7.setCarModels(carModels7);
+                    carSelling7.setCountryOfOrigin("fff");
+
+                        SendMessage message = SendMessage.builder()
+                                .chatId(chatId)
+                                .text("Напишите год выпуска автомобиля")
+                                .build();
+
+                        sos = sostoyanie.writeYearOfIssue;
+
+                        System.out.println("model number " + carModelInfoSell.getId());
+                        try {
+                            execute(message);
+                        } catch (TelegramApiException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }
+            }
+            /////////////////// Логика покупки
+
+           else if (update.hasCallbackQuery() && sos == sostoyanie.checkCategoryForBuy) {
                 String chatId = update.getCallbackQuery().getMessage().getChatId().toString();
 
                 // Создание списка объектов с информацией о категориях и текстах сообщений
@@ -687,6 +910,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                 categoryInfoList.add(new CategoryInfoBuy("category_buy:7", "Ремонт компьютеров:", 7));
 
                 for (CategoryInfoBuy categoryInfo : categoryInfoList) {
+
                     if (update.getCallbackQuery().getData().equals(categoryInfo.getCategory())) {
                         tempCatIdBuy = categoryInfo.getSostId();
 
@@ -698,18 +922,127 @@ public class TelegramBot extends TelegramLongPollingBot {
                         try {
                             // Отправка сообщения
                             execute(message);
-                            sos = sostoyanie.checkCategoryForBuy;
+                    //        sos = sostoyanie.checkCategoryForBuy; похоже что не нужно
                         } catch (TelegramApiException e) {
                             e.printStackTrace();
                         }
-                        List<Order> orders = orderRepository.findByCategoryId(tempCatIdBuy);
 
+                        if (tempCatIdBuy == 1) {
+                            System.out.println("вы хотите КУПИТЬ авто");
+                            sos = sostoyanie.chooseCarBrandForBuy;
+
+                            List<CarBrands> carBrandsList = checkCarBandsBuy(chatId);
+
+                            InlineKeyboardMarkup keyboard = new InlineKeyboardMarkup();
+                            List<List<InlineKeyboardButton>> rowList = new ArrayList<>();
+
+                            for (CarBrands carBrands1 : carBrandsList) {
+                                InlineKeyboardButton button = new InlineKeyboardButton();
+                                List<InlineKeyboardButton> row = new ArrayList<>();
+                                button.setText(carBrands1.getName());
+                                button.setCallbackData("car_brand_buy:" + carBrands1.getId());
+                                tempCarBrandIdBuy5 = carBrands1.getId();
+
+                                row.add(button);
+                                rowList.add(row);
+                            }
+
+                            keyboard.setKeyboard(rowList);
+                            SendMessage message1 = SendMessage.builder()
+                                    .chatId(chatId)
+                                    .text("Выберите марку автомобиля, который хотите купить:")
+                                    .replyMarkup(keyboard)
+                                    .build();
+
+                            try {
+                                execute(message1);
+                                sos = sostoyanie.chooseCarModelForBuy;
+                            } catch (TelegramApiException e) {
+                                throw new RuntimeException(e);
+                            }
+                        }
+
+                        // временная заглушка для остальных категорий
+
+                        else {
+                        List<Order> orders = orderRepository.findByCategoryId(tempCatIdBuy);
                         sendOrdersToChat(chatId, orders);
+                        }
                     }
                 }
 
             }
 
+                    else if (update.hasCallbackQuery() && sos == sostoyanie.chooseCarModelForBuy) {
+
+                        String chatId = update.getCallbackQuery().getMessage().getChatId().toString();
+
+                        CarBrandInfoBuy carBrandInfoBuy1 = new CarBrandInfoBuy();
+                        List<CarBrandInfoBuy> carBrandList = carBrandInfoBuy1.createCarBrandList();
+                        // тут список марок автомобилей для покупки
+
+                for (CarBrandInfoBuy carBrandInfoBuy : carBrandList) {
+                    if (update.getCallbackQuery().getData().equals(carBrandInfoBuy.getBrand())) {
+                        tempCarBrandIdBuy5 = carBrandInfoBuy.getSostId();
+                        tempCarBrandNameBuy5 = carBrandInfoBuy.getBrand();
+
+                        // потом обдумать нужно ли чтото здесь
+
+                        List<CarModels> carModelsList = checkCarModelsBuy(chatId);
+
+                        InlineKeyboardMarkup keyboardModels = new InlineKeyboardMarkup();
+                        List<List<InlineKeyboardButton>> rowListModels = new ArrayList<>();
+
+                        for (CarModels carModels : carModelsList) {
+                            if (carModels.getCarBrands().getId() == tempCarBrandIdBuy5) {
+                                InlineKeyboardButton button = new InlineKeyboardButton();
+                                List<InlineKeyboardButton> row = new ArrayList<>();
+                                button.setText(carModels.getModel());
+                                button.setCallbackData("car_model_buy:" + carModels.getId());
+
+                                row.add(button);
+                                rowListModels.add(row);
+                            }
+                            //TODO
+                        }
+                        keyboardModels.setKeyboard(rowListModels);
+                        SendMessage message2 = SendMessage.builder()
+                                .chatId(chatId)
+                                .text("Выберите модель автомобиля, который хотите купить: " + carBrandInfoBuy.getMessage())
+                                .replyMarkup(keyboardModels)
+                                .build();
+
+
+                        try {
+                            execute(message2);
+                            sos = sostoyanie.seeCarsByModel;
+                        } catch (TelegramApiException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }
+            }
+
+                    else if (update.hasCallbackQuery() && sos == sostoyanie.seeCarsByModel) {
+                        String chatId = update.getCallbackQuery().getMessage().getChatId().toString();
+
+                        CarModelInfoBuy carModelInfoBuy1 = new CarModelInfoBuy(carModelRepository);
+                        List<CarModelInfoBuy> carModelList = carModelInfoBuy1.createCarModelList();
+
+                        // тут список моделей автомобилей
+
+
+                      for (CarModelInfoBuy carModelInfoBuy : carModelList) {
+                          if (update.getCallbackQuery().getData().equals("car_model_buy:" + carModelInfoBuy.getId())) {
+                              tempCarModelIdBuy5 = carModelInfoBuy.getId();
+                              tempCarModelNameBuy5 = carModelInfoBuy.getModel();
+                              tempCarModelBrandIdBuy5 = carModelInfoBuy.getBrandId();
+                              tempCarModelBodyStyleBuy5 = carModelInfoBuy.getBodyStyle();
+
+                              sendCarsToChatByModels(chatId, tempCarModelIdBuy5);
+                          }
+                      }
+            }
         }
     }
 
@@ -756,7 +1089,7 @@ public class TelegramBot extends TelegramLongPollingBot {
             InlineKeyboardButton backInStart = new InlineKeyboardButton();
 
             List<InlineKeyboardButton> row = new ArrayList<>();
-            buy.setText("Купить (продавец свяжется с Вами");
+            buy.setText("Купить (продавец свяжется с Вами)");
             buy.setCallbackData("buy_order");
             backInStart.setText("Вернуться в начало");
             backInStart.setCallbackData("back_start");
@@ -934,7 +1267,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
     }
 
-    private void confirmNewOrderCar(Update update, Sostoyanie sostoyanie) {
+    private void confirmNewOrder(Update update, Sostoyanie sostoyanie) {
         String chatId = String.valueOf(update.getMessage().getChatId());
 
         if (sos == sostoyanie.confirmNewOrder) {
@@ -977,8 +1310,8 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
     }
 
-    private void writeOrderInDb(Order order) {
-        order.setId(userIdCallback5);
+    private void writeOrderInDb(Order order) throws InterruptedException {
+
         order.setCategory(categories5);
         order.setName(name5);
         order.setPhoto(image5);
@@ -987,9 +1320,33 @@ public class TelegramBot extends TelegramLongPollingBot {
         order.setTimePublication(LocalDateTime.now());
         order.setSellerUserName(sellerUserName5);
         order.setSellerChatId(sellerChatId5);
-        orderService.saveOrder(order.getUserId(), order.getName(),order.getDescription(), order.getPrice(), order.getPhoto(),order.getCategory(), order.getTimePublication(), order.getSellerUserName(), order.getSellerChatId());
+      //  orderService.saveOrder(order.getName(),order.getDescription(), order.getPrice(), order.getPhoto(),order.getCategory(), order.getTimePublication(), order.getSellerUserName(), order.getSellerChatId());
 
+        orderRepository.saveAndFlush(order);
+
+        Thread.sleep(500);
+if (carInDb == true) {
+    saveCarInDb(carSelling5, order.getId());
+}
+else System.out.println("записана категория НЕ авто");
     }
+    // Save Car
+    private void saveCarInDb(CarSelling carSelling, long orderId) {
+
+        carSelling.setYearOfIssue(tempYearOfIssue5);
+        carSelling.setCountryOfOrigin("Страна");
+        carSelling.setCarModelId(tempCarModelId5Sell);
+        carSelling.setCarBrands(carBrands5);
+        carSelling.setOrderId(orderId);
+        carService.saveCar(tempYearOfIssue5, "неизвестно", tempCarModelId5Sell, carBrands5, orderId);
+        // carSelling.getCountryOfOrigin()
+
+       /* carService.saveCar(carSelling.getYearOfIssue(),
+                           carSelling.getCountryOfOrigin(),
+                           carSelling.getCarModels(),
+                           carSelling.getCarBrands(),
+                           carSelling.getOrderId());*/
+        }
 
 
     private List<Categories> checkCategorySeller(String chatId) {
@@ -997,11 +1354,113 @@ public class TelegramBot extends TelegramLongPollingBot {
         return categoryRepository.findAll();
 
     }
+    // Auto Logic
+    private List<CarBrands> checkCarBrandsSeller(String chatId) {
+
+        return carBrandRepository.findAll();
+    }
+    private List<CarModels> checkCarModelsSeller(String chatId) {
+
+        return carModelRepository.findAll();
+    }
+
+    private List<CarBrands> checkCarBandsBuy(String chatId) {
+
+        return carBrandRepository.findAll();
+    }
+
+    private List<CarModels> checkCarModelsBuy(String chatId) {
+
+        return carModelRepository.findAll();
+    }
+    /////////
 
     private List<Categories> checkCategoryBuyer(String chatId) {
 
         return categoryRepository.findAll();
     }
+
+    private void sendAdvertisementsToChat(String chatId, List<CarSelling> advertisements) {
+        // Loop through advertisements and send them to the chat
+        for (CarSelling advertisement : advertisements) {
+            String messageText = "Advertisement ID: " + advertisement.getId()
+                    + "\nCar Brand: " + advertisement.getCarBrands().getName()
+                    + "\nYear of Issue: " + advertisement.getYearOfIssue()
+                    + "\nCountry of Origin: " + advertisement.getCountryOfOrigin();
+
+            SendMessage message = SendMessage.builder()
+                    .chatId(chatId)
+                    .text(messageText)
+                    .build();
+
+            try {
+                execute(message);
+            } catch (TelegramApiException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+    // Метод предназначенный для отображения автомобилей одной марки и з двух таблиц
+    private List<CarWithOrderInfo> getCarsWithOrderInfoByModel(long carModelId) {
+        List<CarSelling> carSellingsByModel = carSellingRepository.findByCarModelId(carModelId);
+        List<CarWithOrderInfo> carsWithOrderInfo = new ArrayList<>();
+
+        for (CarSelling carSelling : carSellingsByModel) {
+            Order order = orderRepository.findById(carSelling.getOrderId()).orElse(null);
+
+            if (order != null) {
+                CarWithOrderInfo carWithOrderInfo = new CarWithOrderInfo(carSelling, order);
+                carsWithOrderInfo.add(carWithOrderInfo);
+            }
+        }
+
+        return carsWithOrderInfo;
+    }
+
+    /**
+     * Метод использующий getCarsWithOrderInfoByModel для работы
+     */
+
+    private void sendCarsToChatByModels(String chatId, long carModelId) {
+        List<CarWithOrderInfo> carsWithOrderInfo = getCarsWithOrderInfoByModel(carModelId);
+
+        for (CarWithOrderInfo carWithOrderInfo : carsWithOrderInfo) {
+            CarSelling carSelling = carWithOrderInfo.getCarSelling();
+            Order order = carWithOrderInfo.getOrder();
+
+            String messageText = "Car Model: " + carSelling.getCarModelId()
+                    + "\nCar Brand: " + carSelling.getCarBrands().getName()
+                    + "\nYear of Issue: " + carSelling.getYearOfIssue()
+                    + "\nCountry of Origin: " + carSelling.getCountryOfOrigin()
+                    + "\nOrder Name: " + order.getName()
+                    + "\nOrder Description: " + order.getDescription()
+                    + "\nOrder Price: " + order.getPrice();
+
+
+            SendMessage message = SendMessage.builder()
+                    .chatId(chatId)
+                    .text(messageText)
+                    .build();
+
+            String photoByOrderId = getOrderPhotoBy(order);
+            InputFile inputFile = new InputFile(photoByOrderId);
+
+            SendPhoto photoMessage = SendPhoto.builder()
+                    .chatId(chatId)
+                    .photo(inputFile)
+                    .build();
+
+
+
+            try {
+                execute(message);
+                execute(photoMessage);
+            } catch (TelegramApiException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
 
     private byte[] downloadPhoto(String fileId) {
         GetFile getFile = new GetFile();
@@ -1101,13 +1560,21 @@ public class TelegramBot extends TelegramLongPollingBot {
         final int checkCategoryForSell = 7;
         private final int needPhotoAutoPartUpload = 18;
         private final int buttonBuy = 8;
-        private final int checkCategoryForBuy = 19;
+        public final int checkCategoryForBuy = 19;
         private final int buyOrder = 22;
         private final int myPurchases = 23;
         private final int myGoods = 24;
         private final int backStart = 25;
+        private final int chooseCarBrandForSell = 26;
+        private final int chooseCarModelForSell = 27;
+        private final int setCarCreateYear = 28;
+        private final int writeYearOfIssue = 29;
+        private final int chooseCarBrandForBuy = 30;
+        private final int chooseCarModelForBuy = 31;
+        private final int seeCarsByModel = 32;
     }
 }
+
 
 
 
