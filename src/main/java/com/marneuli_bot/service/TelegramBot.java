@@ -3,9 +3,12 @@ package com.marneuli_bot.service.bot;
 import com.marneuli_bot.config.BotConfig;
 import com.marneuli_bot.entity.Categories;
 import com.marneuli_bot.entity.Order;
-import com.marneuli_bot.entity.brands.CarBrands;
-import com.marneuli_bot.entity.brands.CarModels;
-import com.marneuli_bot.entity.brands.CarSelling;
+import com.marneuli_bot.entity.auto_entities.CarBrands;
+import com.marneuli_bot.entity.auto_entities.CarModels;
+import com.marneuli_bot.entity.auto_entities.CarSelling;
+import com.marneuli_bot.entity.mobile_entities.MobileBrands;
+import com.marneuli_bot.entity.mobile_entities.MobileModels;
+import com.marneuli_bot.entity.mobile_entities.MobileOrder;
 import com.marneuli_bot.repository.*;
 import com.marneuli_bot.service.CarService;
 import com.marneuli_bot.service.OrderService;
@@ -52,6 +55,10 @@ public class TelegramBot extends TelegramLongPollingBot {
     @Autowired
     private CarBrandRepository carBrandRepository;
     @Autowired
+    private MobileBrandsRepository mobileBrandsRepository;
+    @Autowired
+    private MobileModelsRepository mobileModelsRepository;
+    @Autowired
     private CarModelRepository carModelRepository;
 
 
@@ -76,7 +83,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     /// Car Model
     private boolean carInDb;
-    private long tempCarModelId5Sell;
+    private long tempCarModelIdSell5;
     private long tempCarModelIdBuy5;
     private CarBrands carBrands5;
     private CarModels carModels5;
@@ -87,7 +94,19 @@ public class TelegramBot extends TelegramLongPollingBot {
     private String tempCarModelBodyStyleBuy5;
     /// Car Sell
     private int tempYearOfIssue5;
-    ////////////////////////////
+    //////////////////////////// MOBILE LOGIC
+    boolean mobileInDb;
+    private long tempMobileBrandIdSell5;
+    private String tempMobileBrandNameSell5;
+    private long tempMobileModelIdSell5;
+    private String tempMobileModelNameSell5;
+    private String tempColorOfMobile5;
+    private MobileBrands mobileBrands5;
+    private MobileModels mobileModels5;
+    private MobileOrder mobileOrder5;
+
+
+    ////////////////////
     private long sellerChatId5;
    private Categories categories5;
    private String sellerUserName5;
@@ -123,6 +142,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         Categories categories7 = new Categories(); // sell
         Categories categories2 = new Categories(); // buy
+        // CARS
         CarBrands carBrands7 = new CarBrands();
         CarModels carModels7 = new CarModels();
         CarSelling carSelling7 = new CarSelling();
@@ -136,6 +156,16 @@ public class TelegramBot extends TelegramLongPollingBot {
         carBrands5 = carBrands7;
         carModels5 = carModels7;
         carSelling5 = carSelling7;
+
+        // MOBILE
+        MobileBrands mobileBrands7 = new MobileBrands();
+        MobileModels mobileModels7 = new MobileModels();
+        MobileOrder mobileOrder7 = new MobileOrder();
+
+        mobileBrands5 = mobileBrands7;
+        mobileModels5 = mobileModels7;
+        mobileOrder5 = mobileOrder7;
+
 
         Order order = new Order();
         startBot(update);
@@ -327,6 +357,35 @@ public class TelegramBot extends TelegramLongPollingBot {
                 sos = sostoyanie.needPhotoUpload;
             }
         }
+        if (sos == sostoyanie.writeColorOfMobile) {
+            String chatId = update.getMessage().getChatId().toString();
+            if (update.hasMessage() && update.getMessage().hasText()) {
+                String colorOfMobile = update.getMessage().getText();
+                tempColorOfMobile5 = colorOfMobile;
+
+                mobileOrder7.setColor(tempColorOfMobile5);
+
+                SendMessage message = SendMessage.builder()
+                        .chatId(chatId)
+                        .text("Вы указали цвет: " + colorOfMobile)
+                        .build();
+
+                SendMessage message2 = SendMessage.builder()
+                        .chatId(chatId)
+                        .text("Добавьте фотографию телефона U+1F517")
+                        .build();
+                mobileInDb = true;
+
+                try {
+                    execute(message);
+                    execute(message2);
+                } catch (TelegramApiException e) {
+                    throw new RuntimeException(e);
+                }
+                sos = sostoyanie.needPhotoUpload;
+
+            }
+        }
 
 
         if (update.hasMessage() && update.getMessage().hasText()) {
@@ -346,7 +405,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                 }
 
 
-                //   saveCarInDb(carSelling7, orderId); рабочий метод но старый возможно
+
 
 
 
@@ -736,10 +795,10 @@ public class TelegramBot extends TelegramLongPollingBot {
                 // Создание списка объектов с информацией о категориях и текстах сообщений
                 List<CategoryInfoSell> categoryInfoList = new ArrayList<>();
 
-                categoryInfoList.add(new CategoryInfoSell("category:1", "Категория автомобилей", 1));
+                categoryInfoList.add(new CategoryInfoSell("category:1", "Автомобили", 1));
                 categoryInfoList.add(new CategoryInfoSell("category:2", "Приложите фотографию автозапчасти", 2));
                 categoryInfoList.add(new CategoryInfoSell("category:3", "Приложите фотографию (пример работы или прайс).", 3));
-                categoryInfoList.add(new CategoryInfoSell("category:4", "Приложите фотографию телефона", 4));
+                categoryInfoList.add(new CategoryInfoSell("category:4", "Смартфоны", 4));
                 categoryInfoList.add(new CategoryInfoSell("category:5", "Приложите фотографию услуги или прайс ремонта телефона", 5));
                 categoryInfoList.add(new CategoryInfoSell("category:6", "Добавьте фотографию компьютера", 6));
                 categoryInfoList.add(new CategoryInfoSell("category:7", "Приложите фотографию ремонта компьютера/прайс", 7));
@@ -765,6 +824,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                         // Auto Sell logic
                         if (tempCatIdSell == 1) {
                             System.out.println("вы хотите ПРОДАТЬ авто");
+                          //  tempCatIdSell = 0;
                             sos = sostoyanie.chooseCarBrandForSell;
 
                             List<CarBrands> carBrandsList = checkCarBrandsSeller(chatId);
@@ -797,6 +857,45 @@ public class TelegramBot extends TelegramLongPollingBot {
                                 throw new RuntimeException(e);
                             }
                         }
+                        // Phone Sell logic
+                        else if (tempCatIdSell == 4) {
+                            System.out.println("смартфоны продажа");
+
+                            sos = sostoyanie.chooseMobileBrandForSell;
+
+                            List<MobileBrands> mobileBrandsList = checkMobileBrandsSeller(chatId);
+
+                            InlineKeyboardMarkup keyboard = new InlineKeyboardMarkup();
+                            List<List<InlineKeyboardButton>> rowList = new ArrayList<>();
+
+                            for (MobileBrands mobileBrands1 : mobileBrandsList) {
+                                InlineKeyboardButton button = new InlineKeyboardButton();
+                                List<InlineKeyboardButton> row = new ArrayList<>();
+                                button.setText(mobileBrands1.getName());
+                                button.setCallbackData("mobile_brand:" + mobileBrands1.getId());
+                                tempMobileBrandIdSell5 = mobileBrands1.getId();
+
+                                row.add(button);
+                                rowList.add(row);
+                            }
+
+                            keyboard.setKeyboard(rowList);
+                            SendMessage message1 = SendMessage.builder()
+                                    .chatId(chatId)
+                                    .text("Выберите марку продаваемого телефона:")
+                                    .replyMarkup(keyboard)
+                                    .build();
+
+                            try {
+                                execute(message1);
+                                sos = sostoyanie.chooseMobileModelForSell;
+                            } catch (TelegramApiException e) {
+                                throw new RuntimeException(e);
+                            }
+                        }
+
+
+
                // временная заглушка для остальных категорий
                                    else sos = sostoyanie.needPhotoUpload; // временная заглушка
 
@@ -810,7 +909,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
                 CarBrandInfoSell carBrandInfoSell1 = new CarBrandInfoSell();
                 List<CarBrandInfoSell> carBrandsList = carBrandInfoSell1.createCarBrandList();
-                // тут список марок автомобилей для покупки
+                // тут список марок автомобилей для продажи
 
                 for (CarBrandInfoSell carBrandInfoSell : carBrandsList) {
                     if (update.getCallbackQuery().getData().equals(carBrandInfoSell.getBrand())) {
@@ -820,7 +919,6 @@ public class TelegramBot extends TelegramLongPollingBot {
                         carBrands7.setId(tempCarBrandIdSell5);
                         carModels7.setCarBrands(carBrands7);
                         carSelling7.setCarBrands(carBrands7);
-
 
                         List<CarModels> carModelsList = checkCarModelsSeller(chatId);
 
@@ -858,6 +956,61 @@ public class TelegramBot extends TelegramLongPollingBot {
                 }
             }
 
+            else if (update.hasCallbackQuery() && sos == sostoyanie.chooseMobileModelForSell) {
+
+                String chatId = update.getCallbackQuery().getMessage().getChatId().toString();
+
+                MobileBrandInfoSell mobileBrandInfoSell1 = new MobileBrandInfoSell();
+                List<MobileBrandInfoSell> mobileBrandList = mobileBrandInfoSell1.createMobileBrandList();
+                // тут список марок телефонов для продажи
+
+                for (MobileBrandInfoSell mobileBrandInfoSell : mobileBrandList) {
+                    if (update.getCallbackQuery().getData().equals(mobileBrandInfoSell.getBrand())) {
+                        tempMobileBrandIdSell5 = mobileBrandInfoSell.getSostId();
+                        tempMobileBrandNameSell5 = mobileBrandInfoSell.getBrand();
+
+                        mobileBrands7.setId(tempMobileBrandIdSell5);
+                        mobileModels7.setMobileBrandId(mobileBrands7);
+                        mobileOrder7.setMobileBrandId(mobileBrands7);
+
+                        List<MobileModels> mobileModelsList = checkMobileModelsSeller(chatId);
+
+                        InlineKeyboardMarkup keyboardModels = new InlineKeyboardMarkup();
+                        List<List<InlineKeyboardButton>> rowListModels = new ArrayList<>();
+
+                        for (MobileModels mobileModels : mobileModelsList) {
+                            if (mobileModels.getMobileBrandId().getId() == tempMobileBrandIdSell5) {
+                                InlineKeyboardButton button = new InlineKeyboardButton();
+                                List<InlineKeyboardButton> row = new ArrayList<>();
+                                button.setText(mobileModels.getModelName());
+                                button.setCallbackData("mobile_model:" + mobileModels.getId());
+
+                                row.add(button);
+                                rowListModels.add(row);
+                            }
+                        }
+
+                        keyboardModels.setKeyboard(rowListModels);
+                        SendMessage message2 = SendMessage.builder()
+                                .chatId(chatId)
+                                .text("Выберите модель: " + mobileBrandInfoSell.getMessage())
+                                .replyMarkup(keyboardModels)
+                                .build();
+
+                        System.out.println(mobileBrands7.getId());
+
+                        try {
+                            execute(message2);
+                            sos = sostoyanie.setMobileColor;
+                        } catch (TelegramApiException e) {
+                            throw new RuntimeException(e);
+
+                        }
+                    }
+                }
+            }
+             // потом поменять название переменной чтобы не вводить в заблуждение!
+            //это не setYear а setModel!!! и в телефонах по этому типо было сделано тоже
             else if (update.hasCallbackQuery() && sos == sostoyanie.setCarCreateYear) {
                 String chatId = update.getCallbackQuery().getMessage().getChatId().toString();
 
@@ -869,10 +1022,12 @@ public class TelegramBot extends TelegramLongPollingBot {
 
                 for (CarModelInfoSell carModelInfoSell : carModelsList) {
                     if (update.getCallbackQuery().getData().equals("car_model:" + carModelInfoSell.getId())) {
-                    tempCarModelId5Sell = carModelInfoSell.getId();
+                    tempCarModelIdSell5 = carModelInfoSell.getId();
                     tempCarModelNameSell5 = carModelInfoSell.getModel();
-                    carModels7.setId(tempCarModelId5Sell);
+                    carModels7.setId(tempCarModelIdSell5);
+
                     carModelInfoSell.setBrandId(carBrands5);
+                    carModelInfoSell.setModel(tempCarModelNameSell5); // установил имя модели
                     carSelling7.setCarBrands(carBrands7);
                    // carSelling7.setCarModels(carModels7);
                     carSelling7.setCountryOfOrigin("fff");
@@ -885,6 +1040,42 @@ public class TelegramBot extends TelegramLongPollingBot {
                         sos = sostoyanie.writeYearOfIssue;
 
                         System.out.println("model number " + carModelInfoSell.getId());
+                        try {
+                            execute(message);
+                        } catch (TelegramApiException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }
+            }// setMobileColor - не совсем корректное название, потом изменить и в авто тоже на setModel
+            else if (update.hasCallbackQuery() && sos == sostoyanie.setMobileColor) {
+
+                String chatId = update.getCallbackQuery().getMessage().getChatId().toString();
+
+                 MobileModelInfoSell mobileModelInfoSell1 = new MobileModelInfoSell(mobileModelsRepository);
+                 List<MobileModelInfoSell> mobileModelList = mobileModelInfoSell1.createMobileModelList();
+
+                 // Тут список моделей телефонов
+
+                for (MobileModelInfoSell mobileModelInfoSell : mobileModelList) {
+                    if (update.getCallbackQuery().getData().equals("mobile_model:" + mobileModelInfoSell.getId())) {
+                       tempMobileModelIdSell5 = mobileModelInfoSell.getId();
+                       tempMobileModelNameSell5 = mobileModelInfoSell.getPhoneModelName();
+                       mobileModels7.setId(tempMobileModelIdSell5);
+
+                       mobileModelInfoSell.setPhoneBrandId(mobileBrands5);
+                       mobileModelInfoSell.setPhoneModelName(tempMobileModelNameSell5);
+                       mobileOrder7.setMobileBrandId(mobileBrands7);
+
+                       SendMessage message = SendMessage.builder()
+                               .chatId(chatId)
+                               .text("Укажите цвет телефона")
+                               .build();
+
+                       sos = sostoyanie.writeColorOfMobile;
+
+                        System.out.println("mobile model number " + mobileModelInfoSell.getId());
+
                         try {
                             execute(message);
                         } catch (TelegramApiException e) {
@@ -970,7 +1161,6 @@ public class TelegramBot extends TelegramLongPollingBot {
                         }
                     }
                 }
-
             }
 
                     else if (update.hasCallbackQuery() && sos == sostoyanie.chooseCarModelForBuy) {
@@ -1039,11 +1229,22 @@ public class TelegramBot extends TelegramLongPollingBot {
                               tempCarModelBrandIdBuy5 = carModelInfoBuy.getBrandId();
                               tempCarModelBodyStyleBuy5 = carModelInfoBuy.getBodyStyle();
 
-                              sendCarsToChatByModels(chatId, tempCarModelIdBuy5);
+                              sendCarsToChatByModels(chatId, tempCarModelNameSell5);
+
                           }
                       }
             }
         }
+    }
+
+
+
+    private List<MobileBrands> checkMobileBrandsSeller(String chatId) {
+
+        return mobileBrandsRepository.findAll();
+    }
+    private List<MobileModels> checkMobileModelsSeller(String chatId) {
+        return mobileModelsRepository.findAll();
     }
 
     private void tellSellerAboutBuyer(String buyerUserName, Order order) {
@@ -1328,6 +1529,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 if (carInDb == true) {
     saveCarInDb(carSelling5, order.getId());
 }
+
 else System.out.println("записана категория НЕ авто");
     }
     // Save Car
@@ -1335,17 +1537,11 @@ else System.out.println("записана категория НЕ авто");
 
         carSelling.setYearOfIssue(tempYearOfIssue5);
         carSelling.setCountryOfOrigin("Страна");
-        carSelling.setCarModelId(tempCarModelId5Sell);
+        carSelling.setCarModelId(tempCarModelIdSell5);
         carSelling.setCarBrands(carBrands5);
         carSelling.setOrderId(orderId);
-        carService.saveCar(tempYearOfIssue5, "неизвестно", tempCarModelId5Sell, carBrands5, orderId);
-        // carSelling.getCountryOfOrigin()
-
-       /* carService.saveCar(carSelling.getYearOfIssue(),
-                           carSelling.getCountryOfOrigin(),
-                           carSelling.getCarModels(),
-                           carSelling.getCarBrands(),
-                           carSelling.getOrderId());*/
+        carSelling.setCarModelName(tempCarModelNameSell5);
+        carService.saveCar(tempYearOfIssue5, "неизвестно", tempCarModelIdSell5, carBrands5, orderId, tempCarModelNameSell5);
         }
 
 
@@ -1401,8 +1597,8 @@ else System.out.println("записана категория НЕ авто");
         }
     }
     // Метод предназначенный для отображения автомобилей одной марки и з двух таблиц
-    private List<CarWithOrderInfo> getCarsWithOrderInfoByModel(long carModelId) {
-        List<CarSelling> carSellingsByModel = carSellingRepository.findByCarModelId(carModelId);
+    private List<CarWithOrderInfo> getCarsWithOrderInfoByModel(String carModelName) {
+        List<CarSelling> carSellingsByModel = carSellingRepository.findByCarModelName(carModelName);
         List<CarWithOrderInfo> carsWithOrderInfo = new ArrayList<>();
 
         for (CarSelling carSelling : carSellingsByModel) {
@@ -1421,15 +1617,18 @@ else System.out.println("записана категория НЕ авто");
      * Метод использующий getCarsWithOrderInfoByModel для работы
      */
 
-    private void sendCarsToChatByModels(String chatId, long carModelId) {
-        List<CarWithOrderInfo> carsWithOrderInfo = getCarsWithOrderInfoByModel(carModelId);
+    private void sendCarsToChatByModels(String chatId, String carModelName) {
+        List<CarWithOrderInfo> carsWithOrderInfo = getCarsWithOrderInfoByModel(carModelName);
 
         for (CarWithOrderInfo carWithOrderInfo : carsWithOrderInfo) {
             CarSelling carSelling = carWithOrderInfo.getCarSelling();
             Order order = carWithOrderInfo.getOrder();
 
-            String messageText = "Car Model: " + carSelling.getCarModelId()
-                    + "\nCar Brand: " + carSelling.getCarBrands().getName()
+
+
+
+            String messageText = "Car Brand: " + carSelling.getCarBrands().getName()
+                    + "\nCar Model: " + carSelling.getCarModelName()
                     + "\nYear of Issue: " + carSelling.getYearOfIssue()
                     + "\nCountry of Origin: " + carSelling.getCountryOfOrigin()
                     + "\nOrder Name: " + order.getName()
@@ -1461,80 +1660,7 @@ else System.out.println("записана категория НЕ авто");
         }
     }
 
-
-    private byte[] downloadPhoto(String fileId) {
-        GetFile getFile = new GetFile();
-        getFile.setFileId(fileId);
-
-        try {
-            org.telegram.telegrambots.meta.api.objects.File file = execute(getFile);
-            String filePath = file.getFilePath();
-            // Вы можете использовать filePath для получения фотографии
-            // Например, скачать фотографию по ссылке: https://api.telegram.org/file/bot<token>/<file_path>
-        } catch (TelegramApiException e) {
-            e.printStackTrace();
-        }
-
-        return new byte[0];
-    }
-
-    /*private void downloadAndSavePhoto(String fileId) {
-        GetFile getFile = new GetFile();
-        getFile.setFileId(fileId);
-
-        try {
-            org.telegram.telegrambots.meta.api.objects.File file = execute(getFile);
-            String filePath = file.getFilePath();
-            byte[] photoData = downloadPhoto(filePath);
-
-            if (photoData != null && photoData.length > 0) {
-                if (photoData.length <= 1024 * 1024) {
-                    // savePhotoToDatabase(photoData);
-                } else {
-                    System.out.println("Фотография превышает размер 1 мегабайта. Уменьшение размера...");
-
-                    // Создание BufferedImage из исходных данных фотографии
-                    ByteArrayInputStream inputStream = new ByteArrayInputStream(photoData);
-                    BufferedImage originalImage = ImageIO.read(inputStream);
-
-                    // Определение новых размеров для уменьшенной фотографии
-                    int targetWidth = 800; // Здесь укажите требуемую ширину
-                    int targetHeight = 800; // Здесь укажите требуемую высоту
-
-                    // Масштабирование исходной фотографии до новых размеров
-                    Image scaledImage = originalImage.getScaledInstance(targetWidth, targetHeight, Image.SCALE_DEFAULT);
-                    BufferedImage resizedImage = new BufferedImage(targetWidth, targetHeight, BufferedImage.TYPE_INT_RGB);
-                    resizedImage.getGraphics().drawImage(scaledImage, 0, 0, null);
-
-                    // Сохранение уменьшенной фотографии в ByteArrayOutputStream
-                    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-                    ImageIO.write(resizedImage, "jpg", outputStream);
-
-                    // Получение уменьшенных данных фотографии
-                    byte[] resizedPhotoData = outputStream.toByteArray();
-
-                    // Проверка размера уменьшенной фотографии
-                    if (resizedPhotoData.length <= 950 * 1024) {
-                        //Сюда надо вставить метод, который будет сохранять в БД картинку
-                        System.out.println("Фотография уменьшена и сохранена.");
-                    } else {
-                        System.out.println("Фотография все еще превышает размер 950 килобайт. Не удалось сохранить.");
-                    }
-                }
-            }
-        } catch (TelegramApiException | IOException e) {
-            e.printStackTrace();
-        }
-    }*/
-
-    public class CategoriesSostoyanie{
-        int category1 = 1;
-        int category2 = 2;
-        int category3 = 3;
-    }
-
     public class Sostoyanie {
-
         private int sss;
         final int start = 0;
         final int sell = 1;
@@ -1572,6 +1698,10 @@ else System.out.println("записана категория НЕ авто");
         private final int chooseCarBrandForBuy = 30;
         private final int chooseCarModelForBuy = 31;
         private final int seeCarsByModel = 32;
+        private final int chooseMobileBrandForSell = 33;
+        private final int chooseMobileModelForSell = 34;
+        private final int setMobileColor = 35;
+        private final int writeColorOfMobile = 36;
     }
 }
 
