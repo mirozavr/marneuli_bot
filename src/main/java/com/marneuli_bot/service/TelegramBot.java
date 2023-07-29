@@ -11,6 +11,7 @@ import com.marneuli_bot.entity.mobile_entities.MobileModels;
 import com.marneuli_bot.entity.mobile_entities.MobileOrder;
 import com.marneuli_bot.repository.*;
 import com.marneuli_bot.service.CarService;
+import com.marneuli_bot.service.MobileService;
 import com.marneuli_bot.service.OrderService;
 import com.marneuli_bot.service.brands.*;
 import com.marneuli_bot.service.helpers.CarWithOrderInfo;
@@ -48,6 +49,8 @@ public class TelegramBot extends TelegramLongPollingBot {
     private OrderService orderService;
     @Autowired
     private CarService carService;
+    @Autowired
+    private MobileService mobileService;
 
     CarSelling carSelling5;
     @Autowired
@@ -118,12 +121,15 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     final BotConfig config;
     private final CarSellingRepository carSellingRepository;
+    private final MobileOrderRepository mobileOrderRepository;
 
 
     public TelegramBot(BotConfig config,
-                       CarSellingRepository carSellingRepository) {
+                       CarSellingRepository carSellingRepository,
+                       MobileOrderRepository mobileOrderRepository) {
         this.config = config;
         this.carSellingRepository = carSellingRepository;
+        this.mobileOrderRepository = mobileOrderRepository;
     }
 
     @Override
@@ -162,6 +168,8 @@ public class TelegramBot extends TelegramLongPollingBot {
         MobileModels mobileModels7 = new MobileModels();
         MobileOrder mobileOrder7 = new MobileOrder();
 
+        mobileBrands7.setId(tempMobileBrandIdSell5);
+
         mobileBrands5 = mobileBrands7;
         mobileModels5 = mobileModels7;
         mobileOrder5 = mobileOrder7;
@@ -170,7 +178,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         Order order = new Order();
         startBot(update);
 
-        if (sos == sostoyanie.needNameWrite) {
+        if (sos == sostoyanie.needSellerPhoneNumber) {
             order.setCategory(categories7);
             if (update.hasMessage() && update.getMessage().hasText()) {
                 String chatId = update.getMessage().getChatId().toString();
@@ -372,7 +380,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
                 SendMessage message2 = SendMessage.builder()
                         .chatId(chatId)
-                        .text("Добавьте фотографию телефона U+1F517")
+                        .text("Добавьте фотографию телефона \uD83D\uDCCE")
                         .build();
                 mobileInDb = true;
 
@@ -423,7 +431,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                 } catch (TelegramApiException e) {
                     throw new RuntimeException(e);
                 }
-                startAnswer(topCommand, topHello);
+                startAnswer(topCommand, topHello, chatId);
 
             } else if (messageText.equals("Редактировать название")) {
                 sos = sostoyanie.changeNameString;
@@ -527,13 +535,13 @@ public class TelegramBot extends TelegramLongPollingBot {
 
                 SendMessage message = SendMessage.builder()
                         .chatId(chatId)
-                        .text("Вы добавили фотографию, напишите название товара/услуги")
+                        .text("Вы добавили фотографию, напишите телефон для связи с Вами")
                         .build();
 
                 try {
                     execute(photo);
                     execute(message);
-                    sos = sostoyanie.needNameWrite;
+                    sos = sostoyanie.needSellerPhoneNumber;
                 } catch (TelegramApiException e) {
                     throw new RuntimeException(e);
                 }
@@ -743,7 +751,8 @@ public class TelegramBot extends TelegramLongPollingBot {
                 sos = sostoyanie.backStart;
                 String chatId = update.getCallbackQuery().getMessage().getChatId().toString();
 
-                startAnswer(topCommand, topHello);
+                    startAnswer(topCommand, topHello, chatId);
+
             }
 
             if (update.getCallbackQuery().getData().equals("my_purchases")) {
@@ -1395,6 +1404,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     public void startBot(Update update) {
         if (update.hasMessage() && update.getMessage().hasText()) {
+            String chatId = update.getMessage().getChatId().toString();
 
             String messageText = update.getMessage().getText();
             Message command = update.getMessage();
@@ -1406,7 +1416,8 @@ public class TelegramBot extends TelegramLongPollingBot {
 
             switch (messageText) {
                 case "/start":
-                    startAnswer(command, hello);
+
+                    startAnswer(command, hello, chatId);
                     break;
 
                 default:
@@ -1414,7 +1425,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
     }
 
-    public void startAnswer(Message message, String hello) {
+    public void startAnswer(Message message, String hello, String chatId) {
         InlineKeyboardMarkup keyboard = new InlineKeyboardMarkup();
 
 
@@ -1458,7 +1469,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         try {
             execute(
                     SendMessage.builder()
-                            .chatId(String.valueOf(message.getChatId()))
+                            .chatId(chatId)
                             .parseMode("Markdown")
                             .text(hello + "! Здесь вы можете купить или продать товары и услуги.")
                             .replyMarkup(keyboard)
@@ -1529,7 +1540,9 @@ public class TelegramBot extends TelegramLongPollingBot {
 if (carInDb == true) {
     saveCarInDb(carSelling5, order.getId());
 }
-
+else if (mobileInDb == true) {
+    saveMobileInDb(mobileOrder5);
+}
 else System.out.println("записана категория НЕ авто");
     }
     // Save Car
@@ -1544,7 +1557,29 @@ else System.out.println("записана категория НЕ авто");
         carService.saveCar(tempYearOfIssue5, "неизвестно", tempCarModelIdSell5, carBrands5, orderId, tempCarModelNameSell5);
         }
 
+        private void saveMobileInDb(MobileOrder mobileOrder) {
 
+        mobileOrder.setDescription(description5);
+        mobileOrder.setPrice(price5);
+        mobileOrder.setPhoto(image5);
+        mobileOrder.setCategory(categories5);
+        mobileOrder.setPhoneModelName(tempMobileModelNameSell5);
+        mobileOrder.setMobileBrandId(mobileBrands5);
+        mobileOrder.setPhoneBrandName(tempMobileBrandNameSell5);
+        mobileOrder.setColor(tempColorOfMobile5);
+        mobileOrder.setPhoneModelId(tempMobileModelIdSell5);
+        mobileOrder.setTimePublication(LocalDateTime.now());
+
+        mobileOrderRepository.saveAndFlush(mobileOrder);
+
+
+
+
+
+       /* mobileService.saveMobileOrder(description5, price5, image5, categories5,
+                tempMobileModelNameSell5, tempMobileBrandIdSell5, tempMobileBrandNameSell5,
+                );*/
+        }
     private List<Categories> checkCategorySeller(String chatId) {
 
         return categoryRepository.findAll();
@@ -1673,7 +1708,7 @@ else System.out.println("записана категория НЕ авто");
 
         private final int deleteMyGood = 5;
         private final int needPhotoUpload = 10;
-        private final int needNameWrite = 11;
+        private final int needSellerPhoneNumber = 11;
         private final int needDescriptionWrite = 12;
         private final int confirmNewOrder = 13;
         private final int sendOrderToDb = 14;
